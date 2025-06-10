@@ -14,7 +14,7 @@
       "dotnetRunMessages": true,
       "launchBrowser": true,
       "launchUrl": "swagger",
-      "applicationUrl": "http://localhost:5054",
+      "applicationUrl": "http://localhost:5000", // Alterado para porta 5000 para consistência local
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
@@ -24,7 +24,7 @@
       "dotnetRunMessages": true,
       "launchBrowser": true,
       "launchUrl": "swagger",
-      "applicationUrl": "http://localhost:5054",
+      "applicationUrl": "https://localhost:5001", // É boa prática ter uma porta HTTPS separada, se for usar HTTPS localmente.
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
