@@ -2,24 +2,55 @@
 using System;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
+using VYNDRA.Classes;
 
-namespace SeuProjetoChat.Hubs
+
+namespace ChatServer
 {
     public class ChatHub : Hub
     {
-        private static ConcurrentDictionary<string, string> _connectedUsers = new ConcurrentDictionary<string, string>();
+        private static ConcurrentDictionary<string, string> _usuarios = new ConcurrentDictionary<string, string>();
 
-        public async Task EnviarMensagem(string usuario, string mensagem)
+        public async Task RegistrarUsuario(string idUsuario)
         {
-            if (string.IsNullOrWhiteSpace(usuario) || string.IsNullOrWhiteSpace(mensagem))
-            {
-                await Clients.Caller.SendAsync("ReceberMensagemErro", "Nome de usuário ou mensagem não podem ser vazios.");
-                return;
-            }
+            _usuarios[idUsuario] = Context.ConnectionId;
 
-            await Clients.All.SendAsync("ReceberMensagem", usuario, mensagem);
-            Console.WriteLine($"Mensagem de {usuario}: {mensagem}");
+            await Clients.All.SendAsync("UsuarioConectado", idUsuario);
+            Console.WriteLine($"Usuário registrado: {idUsuario} com ConnectionId: {Context.ConnectionId}");
         }
+
+
+        public async Task EnviarMensagemPrivada(string paraIdUsuario, string deIdUsuario, string mensagem)
+        {
+            if (_usuarios.TryGetValue(paraIdUsuario, out string connIdDestino))
+            {
+                await Clients.Client(connIdDestino).SendAsync("ReceberMensagemPrivada", deIdUsuario, mensagem);
+                await Clients.Caller.SendAsync("ReceberMensagemPrivada", deIdUsuario, mensagem);
+            }
+            else
+            {
+                await Clients.Caller.SendAsync("ReceberMensagemErro", "Usuário não encontrado ou offline.");
+            }
+        }
+
+
+        public async Task EnviarSolicitacaoAmizade(string paraIdUsuario, string deIdUsuario)
+        {
+            var dao = new PedidoAmizadeDAO();
+            dao.SalvarPedido(new PedidoAmizade { DeUsuario = deIdUsuario, ParaUsuario = paraIdUsuario });
+
+            if (_usuarios.TryGetValue(paraIdUsuario, out string connIdDestino))
+            {
+                await Clients.Client(connIdDestino).SendAsync("ReceberSolicitacaoAmizade", deIdUsuario);
+                await Clients.Caller.SendAsync("SolicitacaoEnviada", paraIdUsuario);
+            }
+            else
+            {
+                await Clients.Caller.SendAsync("SolicitacaoEnviadaOffline", paraIdUsuario);
+            }
+        }
+
+
 
         public override async Task OnConnectedAsync()
         {
