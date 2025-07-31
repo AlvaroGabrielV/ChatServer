@@ -34,19 +34,19 @@ namespace ChatServer
         }
 
 
-        public async Task EnviarSolicitacaoAmizade(string paraIdUsuario, string deIdUsuario)
+        public async Task EnviarSolicitacaoAmizade(string idDestino, string meuId)
         {
             var dao = new PedidoAmizadeDAO();
-            dao.SalvarPedido(new PedidoAmizade { DeUsuario = deIdUsuario, ParaUsuario = paraIdUsuario });
+            dao.SalvarPedido(new PedidoAmizade { DeUsuario = idDestino, ParaUsuario = meuId });
 
-            if (_usuarios.TryGetValue(paraIdUsuario, out string connIdDestino))
+            if (_usuarios.TryGetValue(idDestino, out string connIdDestino))
             {
-                await Clients.Client(connIdDestino).SendAsync("ReceberSolicitacaoAmizade", deIdUsuario);
-                await Clients.Caller.SendAsync("SolicitacaoEnviada", paraIdUsuario);
+                await Clients.Client(connIdDestino).SendAsync("ReceberSolicitacaoAmizade", meuId);
+                await Clients.Caller.SendAsync("SolicitacaoEnviada", idDestino);
             }
             else
             {
-                await Clients.Caller.SendAsync("SolicitacaoEnviadaOffline", paraIdUsuario);
+                await Clients.Caller.SendAsync("SolicitacaoEnviadaOffline", idDestino);
             }
         }
 
