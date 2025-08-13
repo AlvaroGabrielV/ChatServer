@@ -1,9 +1,6 @@
 ﻿using Microsoft.AspNetCore.SignalR;
-using System;
 using System.Collections.Concurrent;
-using System.Threading.Tasks;
 using VYNDRA.Classes;
-
 
 namespace ChatServer
 {
@@ -16,22 +13,50 @@ namespace ChatServer
             Console.WriteLine("Tentando registrar ID: {0}", idUsuario);
             _usuarios[idUsuario] = Context.ConnectionId;
 
-            await Clients.All.SendAsync("UsuarioConectado", idUsuario);
+            await Clients.Others.SendAsync("UsuarioConectado", idUsuario);
             Console.WriteLine($"Usuário registrado: {idUsuario} com ConnectionId: {Context.ConnectionId}");
+
+            var listaOnline = _usuarios.Keys.Where(u => u != idUsuario).ToList();
+            await Clients.Caller.SendAsync("ListaUsuariosOnline", listaOnline);
         }
 
-        public async Task EnviarMensagemPrivada(int paraIdUsuario, int deIdUsuario, string mensagem)
+        public async Task EnviarMensagemPrivada(int remetenteId, int destinatarioId, string mensagem)
         {
-            if (_usuarios.TryGetValue(paraIdUsuario, out string connIdDestino))
+            Console.WriteLine($"[DEBUG] Enviando mensagem de {remetenteId} para {destinatarioId}: {mensagem}");
+
+            try
             {
-                await Clients.Client(connIdDestino).SendAsync("ReceberMensagemPrivada", deIdUsuario, mensagem);
-                await Clients.Caller.SendAsync("ReceberMensagemPrivada", deIdUsuario, mensagem);
+                var dao = new ChatDAO();
+                dao.SalvarMensagem(remetenteId, destinatarioId, mensagem);
+
+                var dataEnvio = DateTime.UtcNow;
+
+                if (_usuarios.TryGetValue(destinatarioId, out string connIdDestino))
+                {
+                    await Clients.Client(connIdDestino).SendAsync("ReceberMensagemPrivada", remetenteId, destinatarioId, mensagem, dataEnvio);
+                    
+                }
+
+                await Clients.Caller.SendAsync("ReceberMensagemPrivada", remetenteId, destinatarioId, mensagem, dataEnvio);
+
+                Console.WriteLine("[DEBUG] Mensagem enviada com sucesso");
             }
-            else
+            catch (Exception ex)
             {
-                await Clients.Caller.SendAsync("ReceberMensagemErro", "Usuário não encontrado ou offline.");
+                Console.WriteLine($"[ERRO] Falha ao enviar mensagem: {ex.Message}");
+                throw;
             }
         }
+
+        public async Task CarregarMensagensPrivadas(int usuario1Id, int usuario2Id)
+        {
+            var dao = new ChatDAO();
+            var mensagens = dao.BuscarMensagens(usuario1Id, usuario2Id);
+            Console.WriteLine($"[ChatHub] Carregando {mensagens.Count} mensagens para {usuario1Id} e {usuario2Id}");
+            await Clients.Caller.SendAsync("MensagensCarregadas", mensagens);
+        }
+
+
 
         public async Task EnviarSolicitacaoAmizade(int idDestino, int meuId)
         {
@@ -61,6 +86,15 @@ namespace ChatServer
         public override async Task OnDisconnectedAsync(Exception exception)
         {
             Console.WriteLine($"Cliente desconectado: {Context.ConnectionId} (Erro: {exception?.Message})");
+
+            var usuarioRemovido = _usuarios.FirstOrDefault(u => u.Value == Context.ConnectionId).Key;
+            if (usuarioRemovido != 0)
+            {
+                _usuarios.TryRemove(usuarioRemovido, out _);
+                await Clients.All.SendAsync("UsuarioDesconectado", usuarioRemovido);
+                Console.WriteLine($"Usuário {usuarioRemovido} removido do dicionário");
+            }
+
             await base.OnDisconnectedAsync(exception);
         }
     }
